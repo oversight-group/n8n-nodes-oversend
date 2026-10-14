@@ -59,9 +59,10 @@ describe('class names match what n8n derives from the filenames', () => {
 		expect(() => new mod.OverSendApi()).not.toThrow();
 	});
 
-	// Task 12 turns this back into an it() once the trigger node exists:
-	// const mod = require('../nodes/OverSendTrigger/OverSendTrigger.node');
-	// expect(typeof mod.OverSendTrigger).toBe('function');
-	// expect(() => new mod.OverSendTrigger()).not.toThrow();
-	it.todo('OverSendTrigger.node.js exports a class named OverSendTrigger');
+	it('OverSendTrigger.node.js exports a class named OverSendTrigger', () => {
+		// eslint-disable-next-line @typescript-eslint/no-var-requires
+		const mod = require('../nodes/OverSendTrigger/OverSendTrigger.node');
+		expect(typeof mod.OverSendTrigger).toBe('function');
+		expect(() => new mod.OverSendTrigger()).not.toThrow();
+	});
 });

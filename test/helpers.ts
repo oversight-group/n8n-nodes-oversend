@@ -1,4 +1,4 @@
-import type { IDataObject, IExecuteFunctions, ILoadOptionsFunctions } from 'n8n-workflow';
+import type { IDataObject, IExecuteFunctions, IHookFunctions, ILoadOptionsFunctions, IWebhookFunctions } from 'n8n-workflow';
 
 export interface Call {
 	method: string;
@@ -101,4 +101,39 @@ export function httpError(status: number, body: unknown, headers: Record<string,
 	if (shape === 'cause') error.cause = { response };
 	else error.response = response;
 	return error;
+}
+
+export function fakeHook(params: Record<string, unknown>, reply: Reply = () => ({}), staticData: Record<string, unknown> = {}) {
+	const calls: Call[] = [];
+	const read = parameterReader(params);
+	const ctx = {
+		// Hook and webhook functions take (name, fallback), with no item index.
+		getNodeParameter: (name: string, fallback?: unknown) => read(name, 0, fallback),
+		getNodeWebhookUrl: () => 'https://n8n.example.test/webhook/abc',
+		getWorkflowStaticData: () => staticData,
+		getCredentials: async () => ({ apiKey: 'osk_live_test', baseUrl: 'https://api.example.test' }),
+		getNode: () => NODE,
+		helpers: {
+			httpRequestWithAuthentication: async (_credential: string, options: Call) => {
+				calls.push(options);
+				return reply(options);
+			},
+		},
+	} as unknown as IHookFunctions;
+	return { ctx, calls, staticData };
+}
+
+export function fakeWebhook(params: Record<string, unknown>, rawBody: string, headers: Record<string, string>, staticData: Record<string, unknown>) {
+	const response = { statusCode: 200, sent: undefined as unknown, status(code: number) { this.statusCode = code; return this; }, send(body: unknown) { this.sent = body; return this; }, end() { return this; } };
+	const read = parameterReader(params);
+	const ctx = {
+		getNodeParameter: (name: string, fallback?: unknown) => read(name, 0, fallback),
+		getWorkflowStaticData: () => staticData,
+		getRequestObject: () => ({ rawBody: Buffer.from(rawBody, 'utf8'), headers }),
+		getHeaderData: () => headers,
+		getBodyData: () => JSON.parse(rawBody),
+		getResponseObject: () => response,
+		getNode: () => NODE,
+	} as unknown as IWebhookFunctions;
+	return { ctx, response };
 }
