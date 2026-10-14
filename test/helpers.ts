@@ -103,13 +103,13 @@ export function httpError(status: number, body: unknown, headers: Record<string,
 	return error;
 }
 
-export function fakeHook(params: Record<string, unknown>, reply: Reply = () => ({}), staticData: Record<string, unknown> = {}) {
+export function fakeHook(params: Record<string, unknown>, reply: Reply = () => ({}), staticData: Record<string, unknown> = {}, webhookUrl = 'https://n8n.example.test/webhook/abc') {
 	const calls: Call[] = [];
 	const read = parameterReader(params);
 	const ctx = {
 		// Hook and webhook functions take (name, fallback), with no item index.
 		getNodeParameter: (name: string, fallback?: unknown) => read(name, 0, fallback),
-		getNodeWebhookUrl: () => 'https://n8n.example.test/webhook/abc',
+		getNodeWebhookUrl: () => webhookUrl,
 		getWorkflowStaticData: () => staticData,
 		getCredentials: async () => ({ apiKey: 'osk_live_test', baseUrl: 'https://api.example.test' }),
 		getNode: () => NODE,
