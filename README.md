@@ -134,7 +134,7 @@ Things to know:
 ## Compatibility
 
 - Node.js 20.15 or later.
-- Tested with n8n: <!-- TODO(task-14) --> to be recorded.
+- Tested with n8n 2.35.5.
 
 ## Development
 

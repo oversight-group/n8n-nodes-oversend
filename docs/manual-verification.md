@@ -1,44 +1,45 @@
 # Manual verification record
 
-Fill this in after testing the built package in a real n8n against a real OverSend company. Nothing below has been run yet.
-
-**Date:**
+**Date:** 2026-10-15
 **Package version:** 0.1.0
-**n8n version:**
-**OverSend environment:**
-**How the package was installed:** (for example `npm pack`, then `npm install ./n8n-nodes-oversend-0.1.0.tgz` inside `~/.n8n/nodes`. Installing from a folder path creates a symlink that does not resolve inside a Docker container, so n8n loads nothing.)
+**n8n version:** 2.35.5
+
+## Setup
+
+n8n 2.35.5 (official Docker image `docker.n8n.io/n8nio/n8n:latest`), package 0.1.0 loaded from the packed tarball as a custom extension (`N8N_CUSTOM_EXTENSIONS`). The OverSend backend ran from branch `feat/n8n-webhooks` on a local dev database with a seeded company (a WhatsApp Web instance, a group chat, a direct chat, the label VIP, and the quick template "welcome"). Evolution was deliberately unreachable, so sends end with status "failed" after OverSend accepted them. The front ran from branch `feat/n8n-webhooks` against that backend.
 
 ## Automated gates
 
-| Gate | Command | Result |
-|---|---|---|
-| Unit tests (no network) | `npm test` | |
-| TypeScript | `npx tsc --noEmit` | |
-| n8n community lint ruleset | `npm run lint` | |
-| Build | `npm run build` | |
-| n8n verification scan, both legs | `npm run scan` | |
-| Live API contract (read-only) | `npm run smoke` | |
+Run on the same build as the live check.
 
-## Checks in n8n
+| Gate | Result |
+|---|---|
+| Package unit tests (`npm test`) | 108/108 pass |
+| Package lint (`npm run lint`) | clean |
+| n8n verification scan (`npm run scan`), source and dist | "n8n would ACCEPT" for both |
+| Backend suite, unit and integration | 750/750 pass |
+| Front typecheck, lint and tests | pass |
+
+## Results in n8n
 
 | # | Check | Result |
 |---|---|---|
-| 1 | n8n log shows both nodes and the credential loaded | |
-| 2 | Credential Test succeeds (calls `GET /v1/instance`) | |
-| 3 | A wrong key fails the credential test with a clear message | |
-| 4 | Send To > Chat lists chats by name and searches while typing | |
-| 5 | Send To > Group lists only groups; sending a text to one works | |
-| 6 | Send To > Phone Number sends a text | |
-| 7 | Send Template: pick a Meta template, its fields appear, the message is delivered with the values filled in | |
-| 8 | Send Template: pick a quick (WhatsApp Web) template, its fields appear | |
-| 9 | Send File sends a binary from an earlier node; Download Media returns a binary | |
-| 10 | Send At with a date and no offset: the scheduled time matches the workflow time zone | |
-| 11 | Retry On Fail does not send twice; a loop over several items sends every message | |
-| 12 | Get Many with Return All follows pages | |
-| 13 | Trigger: activate the workflow, a webhook appears in OverSend Settings marked "Created by the API key ..." | |
-| 14 | Trigger: a message to the connected number starts the workflow with the expected output | |
-| 15 | Trigger: Listen for test event and the production URL both work and coexist | |
-| 16 | Trigger: deactivate the workflow, the webhook is removed | |
-| 17 | The node can be used as a tool by an AI agent | |
+| 1 | n8n loads OverSend, OverSend Trigger and the AI tool variant (OverSend Tool) | PASS |
+| 2 | Credential test: correct key with base URL ending in /v1 gives "Connection successful"; wrong key gives "Unauthorized" | PASS |
+| 3 | Group picker (searchGroups) lists "n8n Test Group (group)"; chat search "  Dana " finds "Dana Test (+972501234567)" | PASS |
+| 4 | Templates, Labels and Assignee (with "Unassigned") dropdowns load; template field mapping shows {first_name} for the quick template | PASS |
+| 5 | Send Text to a Group sends chatId of the group (message created, isGroup true) | PASS |
+| 6 | Chat Update (status pending, unassign, pin) and Set Labels (VIP) | PASS |
+| 7 | Send Template (quick "welcome", first_name Dana) renders "Hi Dana" | PASS |
+| 8 | Send At "2026-12-15T10:00:00" in a workflow set to Asia/Jerusalem schedules 2026-12-15T08:00:00.000Z | PASS |
+| 9 | Send File from binary (invoice.txt) arrives as a document with its name, type and caption | PASS |
+| 10 | Unknown chat id with Continue On Fail outputs { error: "OverSend: not_found" } | PASS |
+| 11 | Chat Get Many with type group returns only the group | PASS |
+| 12 | Activating the trigger workflow registers a webhook in OverSend (GET /v1/webhooks) | PASS |
+| 13 | chat.updated on the direct chat starts one execution with the full event; the group's update is delivered (200) and ignored by the "direct only" filter | PASS |
+| 14 | A forged signature is answered 401 | PASS |
+| 15 | "Execute workflow" (test listening) while the workflow is active adds a /webhook-test/ webhook beside the production one; the test event arrives in the editor; afterwards only the production webhook remains | PASS |
+| 16 | Deactivating removes the webhook; reactivating creates a fresh one | PASS |
+| 17 | OverSend Settings > API: the n8n webhook shows "Created by the API key ..." with no Edit/Rotate; "Add endpoint" stays enabled; the new-key dialog lists webhooks:manage (Hebrew label) | PASS |
 
-## Notes
+Not covered live: real WhatsApp delivery (Evolution offline on purpose), Cloud API templates, poll/vote/edit/delete against a live WhatsApp Web session, message.* trigger events from real inbound messages.
