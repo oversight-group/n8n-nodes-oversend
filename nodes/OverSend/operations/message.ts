@@ -1,8 +1,9 @@
 import type { IDataObject, IExecuteFunctions } from 'n8n-workflow';
-import { compact, type Handler, recipient, sendOptions, splitList, toItems } from '../helpers';
+import { compact, type Handler, optionalLocator, recipient, sendOptions, splitList, toIso, toItems } from '../helpers';
 import { templateBody } from '../templates';
 import { buildMultipart } from '../transport/multipart';
-import { apiRequest } from '../transport/request';
+import { getAll } from '../transport/paginate';
+import { apiDownload, apiRequest } from '../transport/request';
 
 async function send(ctx: IExecuteFunctions, i: number, message: IDataObject) {
 	const { fields, headers } = sendOptions(ctx, i);
@@ -12,6 +13,8 @@ async function send(ctx: IExecuteFunctions, i: number, message: IDataObject) {
 
 const mapped = (value: unknown): Record<string, unknown> =>
 	((value as { value?: Record<string, unknown> | null } | undefined)?.value ?? {}) as Record<string, unknown>;
+
+const id = (ctx: IExecuteFunctions, i: number) => encodeURIComponent((ctx.getNodeParameter('messageId', i) as string).trim());
 
 export const messageHandlers: Record<string, Handler> = {
 	sendText: (ctx, i) => {
@@ -90,5 +93,52 @@ export const messageHandlers: Record<string, Handler> = {
 			type: 'poll',
 			poll: { question: ctx.getNodeParameter('question', i) as string, options, multiple: ctx.getNodeParameter('multipleAnswers', i, false) as boolean },
 		});
+	},
+
+	get: async (ctx, i) => toItems(await apiRequest(ctx, 'GET', `/messages/${id(ctx, i)}`), i),
+
+	getMany: async (ctx, i) => {
+		const filters = ctx.getNodeParameter('filters', i, {}) as { direction?: string; since?: string; receivedSince?: string };
+		const timezone = ctx.getTimezone();
+		const qs = compact({
+			chatId: optionalLocator(ctx, 'filterChatId', i),
+			direction: filters.direction || undefined,
+			since: filters.since ? toIso(filters.since, timezone) : undefined,
+			receivedSince: filters.receivedSince ? toIso(filters.receivedSince, timezone) : undefined,
+		});
+		const returnAll = ctx.getNodeParameter('returnAll', i) as boolean;
+		const limit = returnAll ? 0 : (ctx.getNodeParameter('limit', i) as number);
+		return toItems(await getAll(ctx, '/messages', 'messages', qs, returnAll, limit), i);
+	},
+
+	downloadMedia: async (ctx, i) => {
+		const messageId = ctx.getNodeParameter('messageId', i) as string;
+		const property = ctx.getNodeParameter('binaryPropertyName', i) as string;
+		const file = await apiDownload(ctx, `/messages/${encodeURIComponent(messageId.trim())}/media`);
+		const binary = await ctx.helpers.prepareBinaryData(file.data, file.fileName, file.mimeType);
+		return [
+			{
+				json: { messageId: messageId.trim(), fileName: file.fileName ?? null, mimeType: file.mimeType, size: file.data.length },
+				binary: { [property]: binary },
+				pairedItem: { item: i },
+			},
+		];
+	},
+
+	react: async (ctx, i) =>
+		toItems(await apiRequest(ctx, 'PUT', `/messages/${id(ctx, i)}/reaction`, { body: { emoji: (ctx.getNodeParameter('emoji', i, '') as string).trim() } }), i),
+
+	edit: async (ctx, i) =>
+		toItems(await apiRequest(ctx, 'PATCH', `/messages/${id(ctx, i)}`, { body: { text: ctx.getNodeParameter('newText', i) as string } }), i),
+
+	delete: async (ctx, i) => {
+		const result = await apiRequest(ctx, 'DELETE', `/messages/${id(ctx, i)}`);
+		const empty = !result || Object.keys(result).length === 0;
+		return empty ? [{ json: { id: (ctx.getNodeParameter('messageId', i) as string).trim(), deleted: true }, pairedItem: { item: i } }] : toItems(result, i);
+	},
+
+	vote: async (ctx, i) => {
+		const options = (ctx.getNodeParameter('voteOptions', i, []) as string[]).map((o) => o.trim()).filter((o) => o !== '');
+		return toItems(await apiRequest(ctx, 'PUT', `/messages/${id(ctx, i)}/vote`, { body: { options } }), i);
 	},
 };
