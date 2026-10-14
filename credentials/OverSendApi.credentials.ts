@@ -46,7 +46,7 @@ export class OverSendApi implements ICredentialType {
 
 	test: ICredentialTestRequest = {
 		request: {
-			baseURL: '={{$credentials.baseUrl.replace(/\/+$/, "")}}',
+			baseURL: '={{$credentials.baseUrl.replace(/\\/+$/, "")}}',
 			url: '/v1/instance',
 		},
 	};
