@@ -48,6 +48,7 @@ function offsetMinutes(date: Date, timezone: string): number {
 
 /** An ISO time for the API: one without an offset is read in the workflow's time zone. */
 export function toIso(value: string, timezone: string): string {
+	if (typeof value !== 'string') throw new Error(`"${String(value)}" is not a date and time (Send At)`);
 	const trimmed = value.trim();
 	const hasOffset = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(trimmed);
 	const parsed = new Date(hasOffset ? trimmed : `${trimmed}Z`);
@@ -59,11 +60,25 @@ export function toIso(value: string, timezone: string): string {
 	return new Date(utc).toISOString();
 }
 
-/** `n8n-` + 40 hex: the same for a retry of the same execution, node and item (the API allows 64 characters). */
+/** n8n's run index of this node (0 on the first pass, 1 on the next, as in a loop); 0 when it cannot be read. */
+function runIndex(ctx: IExecuteFunctions, i: number): number {
+	try {
+		const value = ctx.getWorkflowDataProxy(i).$runIndex;
+		return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+	} catch {
+		return 0;
+	}
+}
+
+/**
+ * `n8n-` + 40 hex: the same for a retry of the same execution, node, run and item (Retry On Fail stays in one run),
+ * different for each pass of a loop (the API allows 64 characters).
+ */
 export function defaultIdempotencyKey(ctx: IExecuteFunctions, i: number): string | undefined {
 	const executionId = ctx.getExecutionId();
 	if (!executionId) return undefined;
-	return `n8n-${createHash('sha256').update(`${executionId}|${ctx.getNode().id}|${i}`).digest('hex').slice(0, 40)}`;
+	const material = `${executionId}|${ctx.getNode().id}|${runIndex(ctx, i)}|${i}`;
+	return `n8n-${createHash('sha256').update(material).digest('hex').slice(0, 40)}`;
 }
 
 interface SendOptionValues {

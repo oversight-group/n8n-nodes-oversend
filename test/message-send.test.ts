@@ -48,6 +48,7 @@ describe('sends', () => {
 		expect(text).toContain('name="caption"\r\n\r\nLook');
 		expect(text).toContain('name="ignoreUnsubscribe"\r\n\r\ntrue');
 		expect(text).toContain('filename="photo.jpg"\r\nContent-Type: image/jpeg\r\n\r\nJPEG');
+		expect(String(call.headers?.['Idempotency-Key'])).toMatch(/^n8n-[0-9a-f]{40}$/);
 	});
 
 	it('template with mapped fields', async () => {
@@ -87,6 +88,29 @@ describe('send options', () => {
 		expect(first).toMatch(/^n8n-[0-9a-f]{40}$/);
 	});
 
+	it('differs per run of the node (a loop) and per item, stable within a run', () => {
+		const key = (runIndex: number, item: number, executionId = 'e9') => defaultIdempotencyKey(fakeExecute({}, () => sent, { executionId, runIndex }).ctx, item);
+		expect(key(0, 0)).toBe(key(0, 0));
+		expect(key(0, 0)).not.toBe(key(1, 0));
+		expect(key(1, 0)).toBe(key(1, 0));
+		expect(key(0, 0)).not.toBe(key(0, 1));
+		expect(key(1, 0)).toMatch(/^n8n-[0-9a-f]{40}$/);
+	});
+
+	it('falls back to run 0 when the run index cannot be read', () => {
+		const { ctx } = fakeExecute({}, () => sent, { executionId: 'e9' });
+		const reference = defaultIdempotencyKey(ctx, 0);
+		(ctx as unknown as { getWorkflowDataProxy: () => never }).getWorkflowDataProxy = () => {
+			throw new Error('no proxy');
+		};
+		expect(defaultIdempotencyKey(ctx, 0)).toBe(reference);
+	});
+
+	it('reads a sendAt without an offset in the workflow time zone', async () => {
+		const { call } = await run('sendText', { ...toPhone, text: 'hi', options: { sendAt: '2026-10-15T10:00:00' } }, { timezone: 'Asia/Jerusalem' });
+		expect(call.body).toMatchObject({ sendAt: '2026-10-15T07:00:00.000Z' });
+	});
+
 	it('sends no key when n8n has no execution id', () => {
 		const { ctx } = fakeExecute({}, () => sent, { executionId: '' });
 		expect(defaultIdempotencyKey(ctx, 0)).toBeUndefined();
@@ -102,9 +126,11 @@ describe('toIso', () => {
 		expect(toIso('2026-10-15T10:00:00', 'Asia/Jerusalem')).toBe('2026-10-15T07:00:00.000Z');
 		expect(toIso('2026-12-15T10:00:00', 'Asia/Jerusalem')).toBe('2026-12-15T08:00:00.000Z');
 		expect(toIso('2026-10-15T10:00:00', 'UTC')).toBe('2026-10-15T10:00:00.000Z');
+		expect(toIso('2026-10-26T10:00:00', 'Asia/Jerusalem')).toBe('2026-10-26T08:00:00.000Z');
 	});
 
 	it('refuses what is not a time', () => {
 		expect(() => toIso('tomorrow', 'UTC')).toThrow('Send At');
+		expect(() => toIso(undefined as unknown as string, 'UTC')).toThrow('Send At');
 	});
 });

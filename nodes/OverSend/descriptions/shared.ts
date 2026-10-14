@@ -72,7 +72,7 @@ export const sendOptionsField: INodeProperties = {
 			type: 'string',
 			default: '',
 			description:
-				'Sending again with the same key returns the first message instead of a second one. By default each execution and item gets its own key, so a retry never sends twice.',
+				'Sending again with the same key returns the first message instead of a second one. By default each execution, run and item gets its own key, so a retry never sends twice.',
 		},
 		{
 			displayName: 'Ignore Unsubscribe',
