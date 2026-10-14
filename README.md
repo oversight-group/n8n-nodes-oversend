@@ -52,7 +52,9 @@ Template Get Many, Instance Get Status and the credential test need no scope.
 
 The trigger needs `webhooks:manage` plus the read scope of the events you pick: `messages:read` for message events (and scheduled message status), `chats:read` for chat updated and contact unsubscribed or resubscribed events. WhatsApp connection events need nothing more.
 
-If a call fails with `forbidden`, the error names the missing scope. Scopes can't be changed on an existing key, so create a new key.
+If a call fails with `insufficient_scope`, the error names the missing scope. Scopes can't be changed on an existing key, so create a new key.
+
+Editing or deleting a message, and editing or deleting a note, work only for items this API key created; for others the API answers `forbidden`. Scheduled Message Cancel likewise works only for messages this key scheduled.
 
 ## Operations
 
@@ -69,7 +71,7 @@ If a call fails with `forbidden`, the error names the missing scope. Scopes can'
 | Template | Get Many |
 | Instance | Get Status |
 
-Get Many operations return one item per entry. **Return All** follows the API's pages; otherwise **Limit** applies. Delete, Remove and Note Delete return `{ "success": true }`.
+Get Many operations return one item per entry. **Return All** follows the API's pages; otherwise **Limit** applies. Note Delete and Unsubscribe Remove return `{ "success": true }`. Message Delete returns the message (or `{ "id": ..., "deleted": true }`).
 
 Contact > Check WhatsApp works only for WhatsApp Web numbers. Polls, votes, edits and deletes also work only for WhatsApp Web numbers. On a WhatsApp Cloud API number the API answers `not_supported`, and the node shows a plain message saying so.
 
@@ -92,6 +94,8 @@ Choose **Message > Send Template** and pick a template from the list. Meta templ
 - **Meta templates:** one field per header value, per body value (`{{1}}`, `{{2}}`...) and per URL button value. If the header is a file, a Header File URL (and file name) field appears; it is optional when the template has a default file. Authentication templates have a Code field. The template's language is taken from the template you picked.
 - **Quick templates (WhatsApp Web):** one field per placeholder; its fallback value is shown in the hint.
 
+In an expression (or when an AI agent calls the node), the Template value is `meta|<language>|<name>` for a Meta template, for example `meta|he|order_update`, and `quick||<name>` for a WhatsApp Web quick template.
+
 Meta templates are the way to write to someone outside the 24-hour window, and they work on Cloud API numbers. Quick templates are for WhatsApp Web numbers.
 
 ## Scheduling and retries
@@ -102,7 +106,7 @@ Every send has these options:
 - **Ignore Unsubscribe** - send even if the contact has unsubscribed.
 - **Idempotency Key** - a key you choose. If you leave it empty, the node builds one from the execution, the node run and the item, so each item of each execution has its own key.
 
-Because of that default key, a loop sends every message, while **Retry On Fail** (or re-running the same execution) never sends the same message twice. If n8n gives the node no execution ID, no key is sent.
+The default key also includes the n8n instance and the workflow, so two n8n instances (staging and production) or a reset n8n never reuse each other's keys. Because of that default key, a loop sends every message, while **Retry On Fail** within one run never sends the same message twice. n8n's "Retry execution" creates a new execution, so it sends the message again. If n8n gives the node no execution ID, no key is sent.
 
 ## OverSend Trigger
 
@@ -112,7 +116,7 @@ Add **OverSend Trigger**, choose the events and activate the workflow. The trigg
 
 **Options:**
 
-- **Chat Type** - all chats, direct chats only or groups only (message events).
+- **Chat Type** - all chats, direct chats only or groups only (message events and chat updated).
 - **Direction** - all, inbound (from customers) or outbound (from the company) (message events).
 - **Output** - **Full Event** (`id`, `type`, `createdAt`, `companyId` and `data`) or **Data Only** (the message, chat or contact itself).
 
@@ -124,12 +128,13 @@ Things to know:
 - The trigger keeps one webhook per n8n URL, so the test URL ("Listen for test event") and the production URL work side by side.
 - The webhooks appear in OverSend Settings, marked "Created by the API key ...". You can disable or delete them there; activating the workflow in n8n again creates a new one. Their URL, events and secret can't be edited there.
 - Revoking or deleting the API key deletes its webhooks. If the key expires, its webhooks stay but receive nothing.
+- Switching an active trigger's credential to a different API key leaves the old key's webhook posting to the same URL: deliveries get a 401 until OverSend switches it off, or you delete it in Settings. Deactivate the workflow before changing the key.
 - A company can have up to 25 webhooks made through the API. They don't count against the 3 you can make in Settings.
 
 ## Compatibility
 
 - Node.js 20.15 or later.
-- Tested with n8n: to be recorded.
+- Tested with n8n: <!-- TODO(task-14) --> to be recorded.
 
 ## Development
 

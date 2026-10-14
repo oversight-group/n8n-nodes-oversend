@@ -32,6 +32,8 @@ interface ApiWebhook {
 	id: string;
 	url: string;
 	events: string[];
+	enabled?: boolean;
+	disabledReason?: string | null;
 }
 
 const sameEvents = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
@@ -138,7 +140,10 @@ export class OverSendTrigger implements INodeType {
 				const { webhooks } = await apiRequest<{ webhooks: ApiWebhook[] }>(this, 'GET', '/webhooks');
 				const mine = storedFor(data, url);
 				const found = mine && webhooks.find((w) => w.id === mine.id);
-				if (mine && mine.secret && found && found.url === url && sameEvents(found.events, events)) return true;
+				// OverSend switches a webhook off after 50 failed deliveries (n8n down for a while): it would stay listed and get
+				// nothing, so it is replaced. One a person switched off in Settings (no disabledReason) is left as it is.
+				const switchedOff = found && found.enabled === false && found.disabledReason === 'too_many_failures';
+				if (mine && mine.secret && found && !switchedOff && found.url === url && sameEvents(found.events, events)) return true;
 				// Gone, changed, or its secret lost: remove this key's leftovers at this URL only, so create() starts clean.
 				// Other URLs (the production URL while listening on the test URL, or the reverse) are never touched.
 				for (const w of webhooks.filter((w) => w.url === url)) {

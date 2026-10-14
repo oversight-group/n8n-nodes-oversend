@@ -97,6 +97,26 @@ describe('send options', () => {
 		expect(key(1, 0)).toMatch(/^n8n-[0-9a-f]{40}$/);
 	});
 
+	it('differs per n8n instance and per workflow, stable when everything matches', () => {
+		const key = (extra: { instanceId?: string; workflowId?: string }) => defaultIdempotencyKey(fakeExecute({}, () => sent, { executionId: 'e9', ...extra }).ctx, 0);
+		expect(key({ instanceId: 'a', workflowId: 'w' })).toBe(key({ instanceId: 'a', workflowId: 'w' }));
+		expect(key({ instanceId: 'a', workflowId: 'w' })).not.toBe(key({ instanceId: 'b', workflowId: 'w' }));
+		expect(key({ instanceId: 'a', workflowId: 'w' })).not.toBe(key({ instanceId: 'a', workflowId: 'x' }));
+		expect(key({ instanceId: 'a', workflowId: 'w' })).toMatch(/^n8n-[0-9a-f]{40}$/);
+	});
+
+	it('still builds a key when the instance id or workflow cannot be read', () => {
+		const { ctx } = fakeExecute({}, () => sent, { executionId: 'e9' });
+		const broken = ctx as unknown as { getInstanceId: () => never; getWorkflow: () => never };
+		broken.getInstanceId = () => {
+			throw new Error('no instance');
+		};
+		broken.getWorkflow = () => {
+			throw new Error('no workflow');
+		};
+		expect(defaultIdempotencyKey(ctx, 0)).toMatch(/^n8n-[0-9a-f]{40}$/);
+	});
+
 	it('falls back to run 0 when the run index cannot be read', () => {
 		const { ctx } = fakeExecute({}, () => sent, { executionId: 'e9' });
 		const reference = defaultIdempotencyKey(ctx, 0);

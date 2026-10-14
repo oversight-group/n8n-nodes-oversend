@@ -84,6 +84,22 @@ describe('webhook registration', () => {
 		}
 	});
 
+	it('replaces a webhook OverSend switched off after too many failures', async () => {
+		const off = { id: 'w1', url, events: ['message.received'], enabled: false, disabledReason: 'too_many_failures' };
+		const { ctx, calls, staticData } = fakeHook({ events: ['message.received'] }, (call) => (call.method === 'GET' ? { webhooks: [off] } : ''), { webhooks: { [url]: { id: 'w1', secret } } });
+		expect(await methods.checkExists.call(ctx)).toBe(false);
+		expect(calls.filter((c) => c.method === 'DELETE').map((c) => c.url)).toEqual([`${base}/w1`]);
+		expect(staticData).toEqual({});
+	});
+
+	it('keeps a webhook a person switched off in Settings, and one that is enabled', async () => {
+		for (const extra of [{ enabled: false, disabledReason: null }, { enabled: true, disabledReason: null }, {}]) {
+			const { ctx, calls } = fakeHook({ events: ['message.received'] }, () => ({ webhooks: [{ id: 'w1', url, events: ['message.received'], ...extra }] }), { webhooks: { [url]: { id: 'w1', secret } } });
+			expect(await methods.checkExists.call(ctx)).toBe(true);
+			expect(calls.filter((c) => c.method === 'DELETE')).toEqual([]);
+		}
+	});
+
 	it('leaves the production webhook alone while the test URL is registered, checked and removed', async () => {
 		const prod = { id: 'wp', url, events: ['message.received'] };
 		const stored = () => ({ webhooks: { [url]: { id: 'wp', secret: 'whsec_prod' } } });

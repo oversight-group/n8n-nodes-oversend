@@ -92,6 +92,7 @@ export const messageDescription: INodeProperties[] = [
 		default: '',
 		required: true,
 		description: 'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+		hint: 'In an expression: meta|LANGUAGE|NAME for a Meta template (for example meta|he|order_update), quick||NAME for a WhatsApp Web quick template',
 		typeOptions: { loadOptionsMethod: 'getTemplates' },
 		displayOptions: show(['sendTemplate']),
 	},

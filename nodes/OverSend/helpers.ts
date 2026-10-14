@@ -70,14 +70,28 @@ function runIndex(ctx: IExecuteFunctions, i: number): number {
 	}
 }
 
+/** Reads a string from n8n; '' when it is missing or the call throws (older or stripped-down contexts). */
+function readString(read: () => unknown): string {
+	try {
+		const value = read();
+		return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
+	} catch {
+		return '';
+	}
+}
+
 /**
- * `n8n-` + 40 hex: the same for a retry of the same execution, node, run and item (Retry On Fail stays in one run),
- * different for each pass of a loop (the API allows 64 characters).
+ * `n8n-` + 40 hex: the same for a retry of the same instance, workflow, execution, node, run and item (Retry On Fail
+ * stays in one run), different for each pass of a loop (the API allows 64 characters). OverSend keeps keys per company
+ * forever, and execution ids are per-instance counters while node ids survive export and import, so the n8n instance and
+ * the workflow are part of the key: staging and production, or a reset n8n, never reuse each other's keys.
  */
 export function defaultIdempotencyKey(ctx: IExecuteFunctions, i: number): string | undefined {
 	const executionId = ctx.getExecutionId();
 	if (!executionId) return undefined;
-	const material = `${executionId}|${ctx.getNode().id}|${runIndex(ctx, i)}|${i}`;
+	const instanceId = readString(() => ctx.getInstanceId());
+	const workflowId = readString(() => ctx.getWorkflow().id);
+	const material = `${instanceId}|${workflowId}|${executionId}|${ctx.getNode().id}|${runIndex(ctx, i)}|${i}`;
 	return `n8n-${createHash('sha256').update(material).digest('hex').slice(0, 40)}`;
 }
 

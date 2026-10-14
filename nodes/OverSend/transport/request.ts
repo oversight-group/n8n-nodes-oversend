@@ -67,7 +67,7 @@ function parseBody(body: unknown): unknown {
 
 interface ErrorBody {
 	error?: unknown;
-	details?: { fields?: Array<{ path?: unknown; message?: unknown }>; required?: unknown };
+	details?: { fields?: Array<{ path?: unknown; message?: unknown }>; required?: unknown; kind?: unknown; limit?: unknown };
 }
 
 /** OverSend answers errors as `{ error: code, details? }`. */
@@ -85,7 +85,9 @@ export function describeApiError(
 		};
 	}
 	const parts: string[] = [];
-	if (HINTS[code]) parts.push(HINTS[code]);
+	if (code === 'limit_reached' && typeof parsed?.details?.kind === 'string' && parsed.details.limit !== undefined) {
+		parts.push(`An OverSend limit was reached (${parsed.details.kind}: ${String(parsed.details.limit)}).`);
+	} else if (HINTS[code]) parts.push(HINTS[code]);
 	const fields = (Array.isArray(parsed?.details?.fields) ? parsed!.details!.fields! : []).filter(
 		(f) => typeof f === 'object' && f !== null,
 	);

@@ -41,6 +41,8 @@ export interface ExecuteExtra {
 	continueOnFail?: boolean;
 	timezone?: string;
 	runIndex?: number;
+	instanceId?: string;
+	workflowId?: string;
 	binary?: Record<string, { meta: { fileName?: string; mimeType: string }; data: Buffer }>;
 	items?: number;
 }
@@ -53,6 +55,8 @@ export function fakeExecute(params: Record<string, unknown>, reply: Reply = () =
 		getNode: () => NODE,
 		getExecutionId: () => extra.executionId ?? 'exec-1',
 		getTimezone: () => extra.timezone ?? 'UTC',
+		getInstanceId: () => extra.instanceId ?? 'instance-1',
+		getWorkflow: () => ({ id: extra.workflowId ?? 'wf-1', name: 'Workflow', active: true }),
 		getWorkflowDataProxy: () => ({ $runIndex: extra.runIndex ?? 0 }),
 		getInputData: () => Array.from({ length: extra.items ?? 1 }, () => ({ json: {} })),
 		continueOnFail: () => extra.continueOnFail ?? false,

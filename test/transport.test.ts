@@ -40,6 +40,25 @@ describe('apiRequest', () => {
 	});
 });
 
+describe('limit_reached hint', () => {
+	it('names the kind and the limit when the API gives them', async () => {
+		const { ctx } = fakeExecute({}, () => {
+			throw httpError(409, { error: 'limit_reached', details: { kind: 'api_webhooks', limit: 25 } });
+		});
+		const error = await apiRequest(ctx, 'POST', '/webhooks').catch((e: unknown) => e);
+		expect((error as NodeApiError).message).toBe('OverSend: limit_reached');
+		expect((error as NodeApiError).description).toContain('An OverSend limit was reached (api_webhooks: 25).');
+	});
+
+	it('keeps the plain hint without details', async () => {
+		const { ctx } = fakeExecute({}, () => {
+			throw httpError(409, { error: 'limit_reached' });
+		});
+		const error = await apiRequest(ctx, 'POST', '/webhooks').catch((e: unknown) => e);
+		expect((error as NodeApiError).description).toBe('An OverSend limit was reached.');
+	});
+});
+
 describe('error shapes from a NodeApiError and binary bodies', () => {
 	const node = { id: 'n', name: 'OverSend', type: 'n8n-nodes-oversend.overSend', typeVersion: 1, position: [0, 0] as [number, number], parameters: {} };
 

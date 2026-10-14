@@ -26,7 +26,7 @@ describe('OverSendApi credential', () => {
 	it('tests the key against GET /v1/instance', () => {
 		expect(credential.test.request.url).toBe('/v1/instance');
 		expect(credential.test.request.baseURL).toBe(
-			String.raw`={{$credentials.baseUrl.replace(/\/+$/, "")}}`,
+			String.raw`={{$credentials.baseUrl.replace(/\/+$/, "").replace(/\/v1$/, "")}}`,
 		);
 	});
 

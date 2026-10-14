@@ -41,7 +41,7 @@ if (!existsSync(scannerEntry)) {
 	console.log('Installing @n8n/scan-community-package into .scan-tool (first run only)...');
 	const install = spawnSync(
 		'npm',
-		['install', '@n8n/scan-community-package', '--prefix', toolDir, '--ignore-scripts', '--no-save'],
+		['install', '@n8n/scan-community-package@0.39.0', '--prefix', toolDir, '--ignore-scripts', '--no-save'],
 		// shell: true is required on Windows - Node refuses to spawn npm.cmd
 		// directly since the .bat/.cmd argument-injection fix.
 		{ stdio: 'inherit', shell: true },
