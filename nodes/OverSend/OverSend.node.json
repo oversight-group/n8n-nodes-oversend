@@ -1,0 +1,10 @@
+{
+  "node": "n8n-nodes-oversend.overSend",
+  "nodeVersion": "1.0",
+  "codexVersion": "1.0",
+  "categories": ["Communication"],
+  "resources": {
+    "credentialDocumentation": [{ "url": "https://api.oversend.co.il/docs" }],
+    "primaryDocumentation": [{ "url": "https://github.com/oversight-group/n8n-nodes-oversend#readme" }]
+  }
+}
