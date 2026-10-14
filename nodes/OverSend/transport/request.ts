@@ -127,7 +127,9 @@ async function send(ctx: ApiContext, options: IHttpRequestOptions): Promise<unkn
 	try {
 		return await ctx.helpers.httpRequestWithAuthentication.call(ctx, CREDENTIAL, options);
 	} catch (error) {
-		if (error instanceof NodeApiError && error.message.startsWith('OverSend')) throw error;
+		// Already built by this transport (a nested call): keep it as it is.
+		const ours = error instanceof NodeApiError && error.message.startsWith('OverSend') ? error : undefined;
+		if (ours) throw ours;
 		const { body, status, headers } = errorResponse(error);
 		const { message, description } = describeApiError(body, status, headers);
 		const parsed = parseBody(body);

@@ -142,11 +142,12 @@ export class OverSendTrigger implements INodeType {
 				// Gone, changed, or its secret lost: remove this key's leftovers at this URL only, so create() starts clean.
 				// Other URLs (the production URL while listening on the test URL, or the reverse) are never touched.
 				for (const w of webhooks.filter((w) => w.url === url)) {
-					try {
-						await apiRequest(this, 'DELETE', `/webhooks/${encodeURIComponent(w.id)}`);
-					} catch (error) {
-						if (!isNotFound(error)) throw error;
-					}
+					// A webhook that is already gone counts as removed; any other error stops the activation.
+					const failure = await apiRequest(this, 'DELETE', `/webhooks/${encodeURIComponent(w.id)}`).then(
+						() => undefined,
+						(error: unknown) => (isNotFound(error) ? undefined : error),
+					);
+					if (failure) throw failure;
 				}
 				forget(data, url);
 				return false;
