@@ -40,7 +40,45 @@ describe('apiRequest', () => {
 	});
 });
 
+describe('error shapes from a NodeApiError and binary bodies', () => {
+	const node = { id: 'n', name: 'OverSend', type: 'n8n-nodes-oversend.overSend', typeVersion: 1, position: [0, 0] as [number, number], parameters: {} };
+
+	it('reads the body from the context of a real NodeApiError', async () => {
+		const { ctx } = fakeExecute({}, () => {
+			const cause = Object.assign(new Error('Request failed with status code 409'), {
+				response: { status: 409, data: { error: 'contact_unsubscribed' }, headers: {} },
+			});
+			throw new NodeApiError(node, cause as never);
+		});
+		const error = await apiRequest(ctx, 'POST', '/messages').catch((e: unknown) => e);
+		expect(error).toBeInstanceOf(NodeApiError);
+		expect((error as NodeApiError).message).toBe('OverSend: contact_unsubscribed');
+		expect((error as NodeApiError).description).toContain('Ignore Unsubscribe');
+		expect((error as NodeApiError).httpCode).toBe('409');
+	});
+
+	it.each([
+		['a Buffer', () => Buffer.from('{"error":"not_found"}')],
+		['an ArrayBuffer', () => new TextEncoder().encode('{"error":"not_found"}').buffer],
+		['a Uint8Array', () => new TextEncoder().encode('{"error":"not_found"}')],
+		['a serialized Buffer', () => Buffer.from('{"error":"not_found"}').toJSON()],
+	])('decodes a download error body given as %s', async (_name, body) => {
+		const { ctx } = fakeExecute({}, () => {
+			throw httpError(404, body());
+		});
+		const error = await apiDownload(ctx, '/messages/m1/media').catch((e: unknown) => e);
+		expect((error as NodeApiError).message).toBe('OverSend: not_found');
+		expect(isNotFound(error)).toBe(true);
+	});
+});
+
 describe('describeApiError', () => {
+	it('survives odd detail entries and an unusable reset header', () => {
+		expect(describeApiError({ error: 'validation_failed', details: { fields: [null, 'x', { path: 'to', message: 'required' }] } }, 400).description).toBe('Fields: to (required)');
+		const { description } = describeApiError({ error: 'rate_limited' }, 429, { 'x-ratelimit-reset': '9e15' });
+		expect(description).toBe('Too many requests.');
+	});
+
 	it('lists validation fields and the needed scope', () => {
 		expect(describeApiError({ error: 'validation_failed', details: { fields: [{ path: 'to', message: 'required' }] } }, 400).description).toBe('Fields: to (required)');
 		expect(describeApiError({ error: 'insufficient_scope', details: { required: 'webhooks:manage' } }, 403).description).toContain('Needed scope: webhooks:manage');
@@ -86,6 +124,12 @@ describe('getAll', () => {
 		expect(await getAll(ctx, '/chats', 'chats', {}, false, 2)).toEqual([{ id: 1 }, { id: 2 }]);
 		expect(calls).toHaveLength(1);
 		expect(calls[0].qs).toEqual({ limit: 2 });
+	});
+
+	it('stops when the server repeats the same cursor', async () => {
+		const { ctx, calls } = fakeExecute({}, () => ({ chats: [{ id: 1 }], nextCursor: 'same' }));
+		expect(await getAll(ctx, '/chats', 'chats', {}, true, 0)).toEqual([{ id: 1 }, { id: 1 }]);
+		expect(calls).toHaveLength(2);
 	});
 
 	it('caps the page size at the endpoint maximum', async () => {

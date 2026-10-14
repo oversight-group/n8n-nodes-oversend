@@ -44,8 +44,17 @@ export function baseUrlOf(credentials: IDataObject): string {
 	return configured.replace(/\/+$/, '').replace(/\/v1$/, '');
 }
 
+/** A Buffer after JSON serialization: `{ type: 'Buffer', data: number[] }`. */
+function isSerializedBuffer(body: unknown): body is { type: 'Buffer'; data: number[] } {
+	const b = body as { type?: unknown; data?: unknown } | null;
+	return typeof b === 'object' && b !== null && b.type === 'Buffer' && Array.isArray(b.data);
+}
+
 function parseBody(body: unknown): unknown {
 	if (Buffer.isBuffer(body)) return parseBody(body.toString('utf8'));
+	if (body instanceof ArrayBuffer) return parseBody(Buffer.from(body));
+	if (ArrayBuffer.isView(body)) return parseBody(Buffer.from(body.buffer, body.byteOffset, body.byteLength));
+	if (isSerializedBuffer(body)) return parseBody(Buffer.from(body.data));
 	if (typeof body === 'string') {
 		try {
 			return JSON.parse(body);
@@ -77,14 +86,17 @@ export function describeApiError(
 	}
 	const parts: string[] = [];
 	if (HINTS[code]) parts.push(HINTS[code]);
-	const fields = Array.isArray(parsed?.details?.fields) ? parsed!.details!.fields! : [];
+	const fields = (Array.isArray(parsed?.details?.fields) ? parsed!.details!.fields! : []).filter(
+		(f) => typeof f === 'object' && f !== null,
+	);
 	if (fields.length > 0) {
 		parts.push(`Fields: ${fields.map((f) => `${String(f.path)} (${String(f.message)})`).join(', ')}`);
 	}
 	if (typeof parsed?.details?.required === 'string') parts.push(`Needed scope: ${parsed.details.required}`);
 	const reset = Number(headers['x-ratelimit-reset']);
 	if (code === 'rate_limited' && Number.isFinite(reset) && reset > 0) {
-		parts.push(`The limit resets at ${new Date(reset * 1000).toISOString()}.`);
+		const resetAt = new Date(reset * 1000);
+		if (!Number.isNaN(resetAt.getTime())) parts.push(`The limit resets at ${resetAt.toISOString()}.`);
 	}
 	return { message: `OverSend: ${code}`, description: parts.join(' ') };
 }
@@ -99,10 +111,16 @@ interface ResponseLike {
 
 /** The HTTP answer inside an error from n8n's request helper, in the shapes n8n versions use. */
 function errorResponse(error: unknown): { body: unknown; status?: number; headers: Record<string, unknown> } {
-	const e = error as { response?: ResponseLike; cause?: { response?: ResponseLike }; httpCode?: string };
+	const e = error as {
+		response?: ResponseLike;
+		cause?: { response?: ResponseLike };
+		context?: { data?: unknown };
+		httpCode?: string;
+	};
 	const response = e.response ?? e.cause?.response;
 	const status = response?.status ?? response?.statusCode ?? (e.httpCode ? Number(e.httpCode) : undefined);
-	return { body: response?.body ?? response?.data, status, headers: response?.headers ?? {} };
+	// A NodeApiError built from an HTTP error keeps the answer body in context.data.
+	return { body: response?.body ?? response?.data ?? e.context?.data, status, headers: response?.headers ?? {} };
 }
 
 async function send(ctx: ApiContext, options: IHttpRequestOptions): Promise<unknown> {

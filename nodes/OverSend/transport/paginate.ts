@@ -20,7 +20,9 @@ export async function getAll(
 		});
 		const entries = Array.isArray(page[key]) ? (page[key] as IDataObject[]) : [];
 		out.push(...entries);
-		cursor = typeof page.nextCursor === 'string' && page.nextCursor !== '' ? page.nextCursor : undefined;
+		const next = typeof page.nextCursor === 'string' && page.nextCursor !== '' ? page.nextCursor : undefined;
+		// A server answering the same cursor again would loop forever.
+		cursor = next !== cursor ? next : undefined;
 	} while (cursor !== undefined && (returnAll || out.length < limit));
 	return returnAll ? out : out.slice(0, limit);
 }
