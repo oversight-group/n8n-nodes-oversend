@@ -149,6 +149,10 @@ npm run lint
 
 `npm test` never uses the network. `npm run smoke` runs a read-only check of the OverSend API against a real company: copy `.env.example` to `.env`, fill in a key, and run it. It sends no WhatsApp messages. `npm run scan` runs n8n's community-node verification checks on the source and on the built output (it installs the scanner into `.scan-tool/` on the first run). `docs/PUBLISHING.md` describes how to release the package, and `docs/manual-verification.md` is the record of the manual test in n8n.
 
+## About
+
+Maintained by [Oversight](https://oversight.co.il/fk385), an Israeli software company. OverSend is our WhatsApp web interface and REST API.
+
 ## License
 
 [MIT](LICENSE)
